@@ -1,0 +1,162 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --font-serif: 'Fraunces', 'Lora', Georgia, serif;
+    --font-sans: 'Inter Tight', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --font-mono: 'JetBrains Mono', monospace;
+  }
+
+  body {
+    font-family: var(--font-sans);
+    background-color: #FDFCF9;
+    color: #2A2624;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1, h2, h3, .font-serif-heading {
+    font-family: var(--font-serif);
+  }
+
+  code, pre, .font-mono-code {
+    font-family: var(--font-mono);
+  }
+}
+
+/* Custom Editorial Markdown Content Styling */
+.prose-wick {
+  color: #2A2624;
+  font-size: 0.975rem;
+  line-height: 1.72;
+  font-family: var(--font-sans);
+}
+
+.prose-wick p {
+  margin-bottom: 0.85em;
+}
+
+.prose-wick p:last-child {
+  margin-bottom: 0;
+}
+
+.prose-wick h1, .prose-wick h2, .prose-wick h3, .prose-wick h4 {
+  font-family: 'Fraunces', 'Lora', Georgia, serif;
+  color: #1F1A17;
+  font-weight: 600;
+  margin-top: 1.3em;
+  margin-bottom: 0.45em;
+  line-height: 1.25;
+}
+
+.prose-wick h1 { font-size: 1.55rem; color: #8B4513; }
+.prose-wick h2 { font-size: 1.35rem; color: #8B4513; }
+.prose-wick h3 { font-size: 1.15rem; }
+.prose-wick h4 { font-size: 1.05rem; }
+
+.prose-wick strong, .prose-wick b {
+  font-weight: 600;
+  color: #C05621;
+}
+
+.prose-wick em, .prose-wick i {
+  font-style: italic;
+  font-family: 'Georgia', serif;
+}
+
+.prose-wick ul {
+  list-style-type: disc;
+  padding-left: 1.35rem;
+  margin-top: 0.4em;
+  margin-bottom: 0.85em;
+}
+
+.prose-wick ol {
+  list-style-type: decimal;
+  padding-left: 1.35rem;
+  margin-top: 0.4em;
+  margin-bottom: 0.85em;
+}
+
+.prose-wick li {
+  margin-bottom: 0.3em;
+  padding-left: 0.2rem;
+}
+
+.prose-wick blockquote {
+  border-left: 2px solid #C05621;
+  padding-left: 1rem;
+  font-style: italic;
+  font-family: 'Georgia', serif;
+  color: #5C5248;
+  margin-top: 0.8em;
+  margin-bottom: 0.8em;
+  background-color: #F9F7F2;
+  padding-top: 0.4rem;
+  padding-bottom: 0.4rem;
+}
+
+.prose-wick table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 0.9em;
+  margin-bottom: 0.9em;
+  font-size: 0.88rem;
+}
+
+.prose-wick th {
+  background-color: #F0EDE4;
+  color: #2A2624;
+  font-weight: 600;
+  text-align: left;
+  padding: 8px 12px;
+  border: 1px solid #E5E1DA;
+}
+
+.prose-wick td {
+  padding: 8px 12px;
+  border: 1px solid #E5E1DA;
+}
+
+.prose-wick code:not(pre code) {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.85em;
+  background-color: #F0EDE4;
+  color: #8B4513;
+  padding: 0.15em 0.38em;
+  border-radius: 2px;
+  border: 1px solid #E5E1DA;
+}
+
+.prose-wick a {
+  color: #C05621;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  transition: color 0.15s ease;
+}
+
+.prose-wick a:hover {
+  color: #8B4513;
+}
+
+.prose-wick hr {
+  border: 0;
+  border-top: 1px solid #E5E1DA;
+  margin: 1.25em 0;
+}
+
+/* Custom subtle scrollbar */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #E5E1DA;
+  border-radius: 2px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #D0CAC0;
+}

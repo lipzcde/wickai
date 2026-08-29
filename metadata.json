@@ -1,0 +1,6 @@
+{
+  "name": "WickAI",
+  "description": "Full-stack AI chat application with custom OpenAI-compatible LLM streaming, user authentication, and JSON storage.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
