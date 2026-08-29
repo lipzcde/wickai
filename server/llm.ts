@@ -1,8 +1,8 @@
 import { Response } from 'express';
 
-const DEFAULT_BASE_URL = 'https://api.openai.com/v1';
+const DEFAULT_BASE_URL = 'https://labor-buyer-cal-private.trycloudflare.com/v1';
 const DEFAULT_API_KEY = process.env.OPENAI_API_KEY || process.env.LLM_API_KEY || '';
-const DEFAULT_MODEL = 'wick-master-200b-v2';
+const DEFAULT_MODEL = 'wick-180gb-reasoning';
 
 export interface OpenAIMessage {
   role: 'system' | 'user' | 'assistant';
