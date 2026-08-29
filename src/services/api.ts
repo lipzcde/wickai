@@ -1,162 +1,126 @@
 import { User, ChatSession, ChatMessage } from '../types.ts';
 
-const TOKEN_STORAGE_KEY = 'wickai_auth_token';
+const CHATS_STORAGE_KEY = 'wickai_chat_sessions_v1';
 
-export function getStoredToken(): string | null {
-  return localStorage.getItem(TOKEN_STORAGE_KEY);
-}
+const GUEST_USER: User = {
+  id: 'guest_user',
+  username: 'Guest User',
+  createdAt: new Date().toISOString(),
+};
 
-export function setStoredToken(token: string): void {
-  localStorage.setItem(TOKEN_STORAGE_KEY, token);
-}
-
-export function removeStoredToken(): void {
-  localStorage.removeItem(TOKEN_STORAGE_KEY);
-}
-
-function getAuthHeaders(): HeadersInit {
-  const token = getStoredToken();
-  return {
-    'Content-Type': 'application/json',
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-  };
-}
-
-async function parseResponse<T>(res: Response, fallbackErrorMsg: string): Promise<T> {
-  const text = await res.text();
-  let data: any = null;
+function getLocalChats(): ChatSession[] {
   try {
-    data = text ? JSON.parse(text) : {};
+    const raw = localStorage.getItem(CHATS_STORAGE_KEY);
+    if (!raw) return [];
+    return JSON.parse(raw);
   } catch {
-    // If not JSON, it's HTML or plain text from server/proxy
-    if (!res.ok) {
-      if (text.includes('<html') || text.includes('A server error') || text.includes('FUNCTION_INVOCATION_FAILED')) {
-        throw new Error(`Server Error (${res.status}): The server encountered an issue. Check deployment logs.`);
-      }
-      throw new Error(text || `Server Error (${res.status})`);
-    }
-    throw new Error(`Unexpected server response format (${res.status})`);
+    return [];
   }
+}
 
-  if (!res.ok) {
-    throw new Error(data?.error || fallbackErrorMsg);
+function saveLocalChats(chats: ChatSession[]): void {
+  try {
+    localStorage.setItem(CHATS_STORAGE_KEY, JSON.stringify(chats));
+  } catch (err) {
+    console.error('Failed to save chats to localStorage:', err);
   }
-  return data as T;
 }
 
 export const authApi = {
-  async register(username: string, password: string): Promise<{ user: User; token: string }> {
-    const res = await fetch('/api/auth/register', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, password }),
-    });
-    const data = await parseResponse<{ user: User; token: string }>(res, 'Registration failed.');
-    if (data.token) {
-      setStoredToken(data.token);
-    }
-    return data;
+  async register(_username: string, _password: string): Promise<{ user: User; token: string }> {
+    return { user: GUEST_USER, token: 'guest_token' };
   },
 
-  async login(username: string, password: string): Promise<{ user: User; token: string }> {
-    const res = await fetch('/api/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, password }),
-    });
-    const data = await parseResponse<{ user: User; token: string }>(res, 'Login failed.');
-    if (data.token) {
-      setStoredToken(data.token);
-    }
-    return data;
+  async login(_username: string, _password: string): Promise<{ user: User; token: string }> {
+    return { user: GUEST_USER, token: 'guest_token' };
   },
 
   async getMe(): Promise<User | null> {
-    const token = getStoredToken();
-    if (!token) return null;
-    try {
-      const res = await fetch('/api/auth/me', {
-        headers: getAuthHeaders(),
-      });
-      if (!res.ok) {
-        removeStoredToken();
-        return null;
-      }
-      const data = await parseResponse<{ user: User }>(res, 'Failed to fetch user.');
-      return data.user || null;
-    } catch {
-      return null;
-    }
+    return GUEST_USER;
   },
 
   async logout(): Promise<void> {
-    try {
-      await fetch('/api/auth/logout', {
-        method: 'POST',
-        headers: getAuthHeaders(),
-      });
-    } catch {
-      // ignore
-    } finally {
-      removeStoredToken();
-    }
+    // No-op for guest mode
   },
 };
 
 export const chatApi = {
   async getChats(): Promise<ChatSession[]> {
-    const res = await fetch('/api/chats', {
-      headers: getAuthHeaders(),
-    });
-    const data = await parseResponse<{ chats: ChatSession[] }>(res, 'Failed to load chats.');
-    return data.chats || [];
+    let chats = getLocalChats();
+    if (chats.length === 0) {
+      const initialChat: ChatSession = {
+        id: 'chat_' + Math.random().toString(36).substring(2, 9),
+        userId: GUEST_USER.id,
+        title: 'New Conversation',
+        model: 'gpt-4o-mini',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        messages: [],
+      };
+      chats = [initialChat];
+      saveLocalChats(chats);
+    }
+    return chats;
   },
 
   async createChat(title?: string, model?: string): Promise<ChatSession> {
-    const res = await fetch('/api/chats', {
-      method: 'POST',
-      headers: getAuthHeaders(),
-      body: JSON.stringify({ title, model }),
-    });
-    const data = await parseResponse<{ chat: ChatSession }>(res, 'Failed to create chat.');
-    return data.chat;
+    const chats = getLocalChats();
+    const newChat: ChatSession = {
+      id: 'chat_' + Math.random().toString(36).substring(2, 9) + Date.now().toString(36),
+      userId: GUEST_USER.id,
+      title: title || 'New Conversation',
+      model: model || 'gpt-4o-mini',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      messages: [],
+    };
+    const updated = [newChat, ...chats];
+    saveLocalChats(updated);
+    return newChat;
   },
 
   async getChat(chatId: string): Promise<ChatSession> {
-    const res = await fetch(`/api/chats/${chatId}`, {
-      headers: getAuthHeaders(),
-    });
-    const data = await parseResponse<{ chat: ChatSession }>(res, 'Failed to load chat.');
-    return data.chat;
+    const chats = getLocalChats();
+    const found = chats.find((c) => c.id === chatId);
+    if (!found) {
+      throw new Error('Chat session not found');
+    }
+    return found;
   },
 
   async deleteChat(chatId: string): Promise<void> {
-    const res = await fetch(`/api/chats/${chatId}`, {
-      method: 'DELETE',
-      headers: getAuthHeaders(),
-    });
-    await parseResponse<{ success: boolean }>(res, 'Failed to delete chat.');
+    const chats = getLocalChats();
+    const filtered = chats.filter((c) => c.id !== chatId);
+    saveLocalChats(filtered);
   },
 
   async clearChatContext(chatId: string): Promise<ChatSession> {
-    const res = await fetch(`/api/chats/${chatId}/clear`, {
-      method: 'POST',
-      headers: getAuthHeaders(),
+    const chats = getLocalChats();
+    let updatedChat: ChatSession | null = null;
+    const newChats = chats.map((c) => {
+      if (c.id === chatId) {
+        updatedChat = { ...c, messages: [], updatedAt: new Date().toISOString() };
+        return updatedChat;
+      }
+      return c;
     });
-    const data = await parseResponse<{ chat: ChatSession }>(res, 'Failed to clear context.');
-    return data.chat;
+    if (!updatedChat) {
+      throw new Error('Chat session not found');
+    }
+    saveLocalChats(newChats);
+    return updatedChat;
   },
 
   async streamChat(
     model: string,
-    messages: Array<{ role: string; content: string }>,
+    messages: Array<{ role: string; content: string } & Partial<ChatMessage>>,
     chatId: string,
     onChunk: (chunk: string) => void,
     signal?: AbortSignal
   ): Promise<void> {
     const res = await fetch('/api/chat', {
       method: 'POST',
-      headers: getAuthHeaders(),
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ model, messages, chatId }),
       signal,
     });
@@ -212,5 +176,36 @@ export const chatApi = {
         }
       }
     }
+
+    // After streaming completes, persist messages to local storage chat session
+    const chats = getLocalChats();
+    const sanitizedMessages: ChatMessage[] = messages.map((m, idx) => ({
+      id: m.id || `msg_${idx}_${Date.now()}`,
+      role: (m.role === 'assistant' ? 'assistant' : m.role === 'system' ? 'system' : 'user') as 'user' | 'assistant' | 'system',
+      content: m.content,
+      createdAt: m.createdAt || new Date().toISOString(),
+      model: m.model,
+    }));
+
+    const updatedChats = chats.map((c) => {
+      if (c.id === chatId) {
+        // Auto-title chat based on first user message if title is still default
+        let chatTitle = c.title;
+        if (chatTitle === 'New Conversation' && sanitizedMessages.length > 0) {
+          const firstUserMsg = sanitizedMessages.find((m) => m.role === 'user');
+          if (firstUserMsg) {
+            chatTitle = firstUserMsg.content.slice(0, 30) + (firstUserMsg.content.length > 30 ? '...' : '');
+          }
+        }
+        return {
+          ...c,
+          title: chatTitle,
+          messages: sanitizedMessages,
+          updatedAt: new Date().toISOString(),
+        };
+      }
+      return c;
+    });
+    saveLocalChats(updatedChats);
   },
 };
