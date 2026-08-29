@@ -27,10 +27,10 @@ function resolveUpstreamModel(modelName: string): string {
   if (clean.includes('fast') || clean.includes('3-ultra')) return 'gpt-4o-mini';
   if (clean.includes('reasoning') || clean.includes('180gb')) return 'o3-mini';
   if (clean.includes('master') || clean.includes('200b')) return 'gpt-4o';
-  if (['gpt-4o', 'gpt-4o-mini', 'o3-mini', 'gpt-3.5-turbo', 'llama-3.3-70b-instruct'].includes(clean)) {
+  if (['wick-180gb-reasoning', 'wick-3-ultra-fast', 'wick-master-200b-v2'].includes(clean)) {
     return clean;
   }
-  return 'gpt-4o';
+  return 'wick-180gb-reasoning';
 }
 
 const SYSTEM_PROMPT: OpenAIMessage = {
