@@ -8,11 +8,9 @@ interface ModelSelectorProps {
 }
 
 const PRESET_MODELS = [
-  { id: 'gpt-4o-mini', name: 'gpt-4o-mini', desc: 'Fast & efficient reasoning (Default)' },
-  { id: 'gpt-4o', name: 'gpt-4o', desc: 'Flagship high-intelligence model' },
-  { id: 'o3-mini', name: 'o3-mini', desc: 'Next-gen reasoning engine' },
-  { id: 'gpt-3.5-turbo', name: 'gpt-3.5-turbo', desc: 'Standard conversational model' },
-  { id: 'llama-3.3-70b-instruct', name: 'llama-3.3-70b-instruct', desc: 'Open-weight high capability' },
+  { id: 'wick-master-200b-v2', name: 'wick-master-200b-v2', desc: 'Flagship high-intelligence model (Default)' },
+  { id: 'wick-3-ultra-fast', name: 'wick-3-ultra-fast', desc: 'Lightning-fast response for everyday tasks' },
+  { id: 'wick-180gb-reasoning', name: 'wick-180gb-reasoning', desc: 'Advanced deep reasoning & complex analysis' },
 ];
 
 export const ModelSelector: React.FC<ModelSelectorProps> = ({

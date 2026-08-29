@@ -2,7 +2,7 @@ import { Response } from 'express';
 
 const DEFAULT_BASE_URL = 'https://api.openai.com/v1';
 const DEFAULT_API_KEY = process.env.OPENAI_API_KEY || process.env.LLM_API_KEY || '';
-const DEFAULT_MODEL = 'gpt-4o-mini';
+const DEFAULT_MODEL = 'wick-master-200b-v2';
 
 export interface OpenAIMessage {
   role: 'system' | 'user' | 'assistant';
@@ -11,7 +11,6 @@ export interface OpenAIMessage {
 
 export function getLLMConfig() {
   const rawBaseUrl = process.env.LLM_BASE_URL || process.env.OPENAI_BASE_URL || DEFAULT_BASE_URL;
-  // Ensure no trailing slash
   const baseUrl = rawBaseUrl.replace(/\/+$/, '');
   const apiKey = process.env.LLM_API_KEY || process.env.OPENAI_API_KEY || DEFAULT_API_KEY;
   const defaultModel = process.env.LLM_DEFAULT_MODEL || process.env.OPENAI_MODEL || DEFAULT_MODEL;
@@ -23,18 +22,24 @@ export function getLLMConfig() {
   };
 }
 
+function resolveUpstreamModel(modelName: string): string {
+  const clean = (modelName || '').toLowerCase();
+  if (clean.includes('fast') || clean.includes('3-ultra')) return 'gpt-4o-mini';
+  if (clean.includes('reasoning') || clean.includes('180gb')) return 'o3-mini';
+  if (clean.includes('master') || clean.includes('200b')) return 'gpt-4o';
+  if (['gpt-4o', 'gpt-4o-mini', 'o3-mini', 'gpt-3.5-turbo', 'llama-3.3-70b-instruct'].includes(clean)) {
+    return clean;
+  }
+  return 'gpt-4o';
+}
+
 const SYSTEM_PROMPT: OpenAIMessage = {
   role: 'system',
   content:
     'You are WickAI, an intelligent AI assistant created by a mysterious young developer whose true identity remains unknown. Answer promptly, accurately, and thoughtfully. Use clear markdown formatting for code, lists, and headers when appropriate.',
 };
 
-/**
- * Optimizes messages by applying sliding window (last 12 messages)
- * and appending the concise system prompt at the beginning.
- */
 export function buildOptimizedMessages(rawMessages: Array<{ role: string; content: string }>): OpenAIMessage[] {
-  // Filter out any invalid messages
   const sanitized = rawMessages
     .filter((m) => m && m.content && typeof m.content === 'string')
     .map((m) => ({
@@ -42,26 +47,21 @@ export function buildOptimizedMessages(rawMessages: Array<{ role: string; conten
       content: m.content.trim(),
     }));
 
-  // Exclude raw system messages from client, we attach our optimized compact system prompt
   const nonSystem = sanitized.filter((m) => m.role !== 'system');
-
-  // Sliding window: keep only the last 12 messages
   const windowed = nonSystem.length > 12 ? nonSystem.slice(-12) : nonSystem;
 
   return [SYSTEM_PROMPT, ...windowed];
 }
 
-/**
- * Streams LLM completion via OpenAI-compatible endpoint directly to client Response as SSE
- */
 export async function streamChatCompletion(
   modelName: string,
   messages: Array<{ role: string; content: string }>,
   res: Response,
-  onComplete?: (fullText: string) => void | Promise<void>
+  onComplete?: (fullText: string) => void
 ): Promise<void> {
   const { baseUrl, apiKey, defaultModel } = getLLMConfig();
   const selectedModel = (modelName && modelName.trim()) || defaultModel;
+  const targetModel = resolveUpstreamModel(selectedModel);
   const optimizedMessages = buildOptimizedMessages(messages);
 
   if (!apiKey) {
@@ -79,13 +79,15 @@ export async function streamChatCompletion(
   const endpoint = `${baseUrl}/chat/completions`;
 
   const requestBody = {
-    model: selectedModel,
+    model: targetModel,
     messages: optimizedMessages,
     stream: true,
   };
 
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 60000); // 60s timeout
+  const timeoutId = setTimeout(() => controller.abort(), 60000);
+
+  let fullText = '';
 
   try {
     const upstreamRes = await fetch(endpoint, {
@@ -101,20 +103,23 @@ export async function streamChatCompletion(
     clearTimeout(timeoutId);
 
     if (!upstreamRes.ok) {
-      let errorText = '';
+      const errorBody = await upstreamRes.text();
+      let errorMsg = `Upstream LLM API error (${upstreamRes.status})`;
       try {
-        errorText = await upstreamRes.text();
-      } catch (e) {
-        errorText = upstreamRes.statusText;
+        const parsed = JSON.parse(errorBody);
+        errorMsg = parsed.error?.message || parsed.error || errorMsg;
+      } catch {
+        if (errorBody) errorMsg = errorBody;
       }
-      res.write(`data: ${JSON.stringify({ error: `Upstream error (${upstreamRes.status}): ${errorText}` })}\n\n`);
+
+      res.write(`data: ${JSON.stringify({ error: errorMsg })}\n\n`);
       res.write('data: [DONE]\n\n');
       res.end();
       return;
     }
 
     if (!upstreamRes.body) {
-      res.write(`data: ${JSON.stringify({ error: 'No response body stream received from LLM endpoint' })}\n\n`);
+      res.write(`data: ${JSON.stringify({ error: 'No response body from upstream LLM provider.' })}\n\n`);
       res.write('data: [DONE]\n\n');
       res.end();
       return;
@@ -123,7 +128,6 @@ export async function streamChatCompletion(
     const reader = upstreamRes.body.getReader();
     const decoder = new TextDecoder('utf-8');
     let buffer = '';
-    let accumulatedText = '';
 
     while (true) {
       const { done, value } = await reader.read();
@@ -143,33 +147,17 @@ export async function streamChatCompletion(
         }
 
         if (trimmed.startsWith('data: ')) {
-          const jsonStr = trimmed.substring(6);
           try {
+            const jsonStr = trimmed.substring(6);
             const parsed = JSON.parse(jsonStr);
             const delta = parsed.choices?.[0]?.delta?.content;
             if (delta) {
-              accumulatedText += delta;
+              fullText += delta;
               res.write(`data: ${JSON.stringify({ content: delta })}\n\n`);
             }
-          } catch (err) {
-            // Forward raw if non-json or partial
+          } catch (parseErr) {
+            // ignore partial line chunks
           }
-        }
-      }
-    }
-
-    if (buffer.trim()) {
-      const trimmed = buffer.trim();
-      if (trimmed.startsWith('data: ') && trimmed !== 'data: [DONE]') {
-        try {
-          const parsed = JSON.parse(trimmed.substring(6));
-          const delta = parsed.choices?.[0]?.delta?.content;
-          if (delta) {
-            accumulatedText += delta;
-            res.write(`data: ${JSON.stringify({ content: delta })}\n\n`);
-          }
-        } catch (e) {
-          // ignore
         }
       }
     }
@@ -178,18 +166,15 @@ export async function streamChatCompletion(
     res.end();
 
     if (onComplete) {
-      try {
-        await onComplete(accumulatedText);
-      } catch (err) {
-        console.error('Error in onComplete handler:', err);
-      }
+      onComplete(fullText);
     }
   } catch (err: any) {
     clearTimeout(timeoutId);
-    console.error('LLM stream error:', err);
-    const errorMsg = err.name === 'AbortError' ? 'Request timed out after 60s.' : (err.message || 'Failed to stream response from AI model.');
-    res.write(`data: ${JSON.stringify({ error: errorMsg })}\n\n`);
-    res.write('data: [DONE]\n\n');
-    res.end();
+    console.error('Streaming completion error:', err);
+    if (!res.writableEnded) {
+      res.write(`data: ${JSON.stringify({ error: err?.message || 'Streaming failed' })}\n\n`);
+      res.write('data: [DONE]\n\n');
+      res.end();
+    }
   }
 }
