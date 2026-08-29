@@ -2,7 +2,6 @@ import express from 'express';
 import path from 'path';
 import cookieParser from 'cookie-parser';
 import dotenv from 'dotenv';
-import { createServer as createViteServer } from 'vite';
 import { storage, UserRecord, ChatSession, ChatMessage } from './server/storage.ts';
 import {
   hashPassword,
@@ -22,8 +21,11 @@ const PORT = 3000;
 app.use(express.json());
 app.use(cookieParser());
 
+// Router for API endpoints - supports both /api/* and root /* (for Vercel rewrites)
+const apiRouter = express.Router();
+
 // --- Health Check ---
-app.get('/api/health', (_req, res) => {
+apiRouter.get('/health', (_req, res) => {
   res.json({
     status: 'ok',
     name: 'WickAI',
@@ -32,7 +34,7 @@ app.get('/api/health', (_req, res) => {
 });
 
 // --- Config Info (Non-sensitive) ---
-app.get('/api/config', (_req, res) => {
+apiRouter.get('/config', (_req, res) => {
   const { defaultModel, baseUrl } = getLLMConfig();
   res.json({
     defaultModel,
@@ -43,9 +45,9 @@ app.get('/api/config', (_req, res) => {
 });
 
 // --- Authentication Routes ---
-app.post('/api/auth/register', async (req, res) => {
+apiRouter.post('/auth/register', async (req, res) => {
   try {
-    const { username, password } = req.body;
+    const { username, password } = req.body || {};
     if (!username || !password) {
       res.status(400).json({ error: 'Username and password are required.' });
       return;
@@ -100,13 +102,13 @@ app.post('/api/auth/register', async (req, res) => {
     });
   } catch (err: any) {
     console.error('Registration error:', err);
-    res.status(500).json({ error: 'Internal server error during registration.' });
+    res.status(500).json({ error: err?.message || 'Internal server error during registration.' });
   }
 });
 
-app.post('/api/auth/login', async (req, res) => {
+apiRouter.post('/auth/login', async (req, res) => {
   try {
-    const { username, password } = req.body;
+    const { username, password } = req.body || {};
     if (!username || !password) {
       res.status(400).json({ error: 'Username and password are required.' });
       return;
@@ -147,21 +149,21 @@ app.post('/api/auth/login', async (req, res) => {
     });
   } catch (err: any) {
     console.error('Login error:', err);
-    res.status(500).json({ error: 'Internal server error during login.' });
+    res.status(500).json({ error: err?.message || 'Internal server error during login.' });
   }
 });
 
-app.get('/api/auth/me', requireAuth, (req: AuthenticatedRequest, res) => {
+apiRouter.get('/auth/me', requireAuth, (req: AuthenticatedRequest, res) => {
   res.json({ user: req.user });
 });
 
-app.post('/api/auth/logout', (_req, res) => {
+apiRouter.post('/auth/logout', (_req, res) => {
   res.clearCookie('auth_token');
   res.json({ success: true, message: 'Logged out successfully.' });
 });
 
 // --- Chat Sessions Management ---
-app.get('/api/chats', requireAuth, async (req: AuthenticatedRequest, res) => {
+apiRouter.get('/chats', requireAuth, async (req: AuthenticatedRequest, res) => {
   try {
     const userId = req.user!.id;
     const chats = await storage.getUserChats(userId);
@@ -172,15 +174,15 @@ app.get('/api/chats', requireAuth, async (req: AuthenticatedRequest, res) => {
   }
 });
 
-app.post('/api/chats', requireAuth, async (req: AuthenticatedRequest, res) => {
+apiRouter.post('/chats', requireAuth, async (req: AuthenticatedRequest, res) => {
   try {
     const userId = req.user!.id;
-    const { title, model } = req.body;
+    const { title, model } = req.body || {};
     const newChat: ChatSession = {
       id: 'chat_' + Math.random().toString(36).substring(2, 9) + Date.now().toString(36),
       userId,
       title: title?.trim() || 'New Conversation',
-      model: model || 'kirocor',
+      model: model || 'gpt-4o-mini',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       messages: [],
@@ -194,7 +196,7 @@ app.post('/api/chats', requireAuth, async (req: AuthenticatedRequest, res) => {
   }
 });
 
-app.get('/api/chats/:chatId', requireAuth, async (req: AuthenticatedRequest, res) => {
+apiRouter.get('/chats/:chatId', requireAuth, async (req: AuthenticatedRequest, res) => {
   try {
     const userId = req.user!.id;
     const { chatId } = req.params;
@@ -210,7 +212,7 @@ app.get('/api/chats/:chatId', requireAuth, async (req: AuthenticatedRequest, res
   }
 });
 
-app.delete('/api/chats/:chatId', requireAuth, async (req: AuthenticatedRequest, res) => {
+apiRouter.delete('/chats/:chatId', requireAuth, async (req: AuthenticatedRequest, res) => {
   try {
     const userId = req.user!.id;
     const { chatId } = req.params;
@@ -227,7 +229,7 @@ app.delete('/api/chats/:chatId', requireAuth, async (req: AuthenticatedRequest, 
 });
 
 // Clear context (reset conversation message history)
-app.post('/api/chats/:chatId/clear', requireAuth, async (req: AuthenticatedRequest, res) => {
+apiRouter.post('/chats/:chatId/clear', requireAuth, async (req: AuthenticatedRequest, res) => {
   try {
     const userId = req.user!.id;
     const { chatId } = req.params;
@@ -249,10 +251,10 @@ app.post('/api/chats/:chatId/clear', requireAuth, async (req: AuthenticatedReque
 });
 
 // --- Chat Completion Streaming Route (SSE) ---
-app.post('/api/chat', requireAuth, async (req: AuthenticatedRequest, res) => {
+apiRouter.post('/chat', requireAuth, async (req: AuthenticatedRequest, res) => {
   try {
     const userId = req.user!.id;
-    const { model, messages, chatId } = req.body;
+    const { model, messages, chatId } = req.body || {};
 
     if (!messages || !Array.isArray(messages) || messages.length === 0) {
       res.status(400).json({ error: 'Messages array is required.' });
@@ -265,7 +267,7 @@ app.post('/api/chat', requireAuth, async (req: AuthenticatedRequest, res) => {
     res.setHeader('Connection', 'keep-alive');
     res.flushHeaders?.();
 
-    const selectedModel = model || 'kirocor';
+    const selectedModel = model || 'gpt-4o-mini';
 
     // Handle stream and persist state on completion if chatId is supplied
     await streamChatCompletion(
@@ -277,7 +279,6 @@ app.post('/api/chat', requireAuth, async (req: AuthenticatedRequest, res) => {
           try {
             let chat = await storage.getChatById(userId, chatId);
             if (!chat) {
-              // Create chat if not exists
               const userPrompt = messages[messages.length - 1]?.content || 'Conversation';
               chat = {
                 id: chatId,
@@ -333,9 +334,22 @@ app.post('/api/chat', requireAuth, async (req: AuthenticatedRequest, res) => {
   }
 });
 
-// --- Server Lifecycle & Vite Middleware ---
+// Mount router on both /api and / to handle all rewrite variants seamlessly
+app.use('/api', apiRouter);
+app.use('/', apiRouter);
+
+// Global Error Handler to guarantee JSON responses
+app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  console.error('Unhandled server error:', err);
+  if (!res.headersSent) {
+    res.status(500).json({ error: err?.message || 'An unexpected server error occurred.' });
+  }
+});
+
+// --- Server Lifecycle & Vite Middleware (Only in local dev) ---
 async function startServer() {
   if (process.env.NODE_ENV !== 'production') {
+    const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: 'spa',

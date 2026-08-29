@@ -22,6 +22,28 @@ function getAuthHeaders(): HeadersInit {
   };
 }
 
+async function parseResponse<T>(res: Response, fallbackErrorMsg: string): Promise<T> {
+  const text = await res.text();
+  let data: any = null;
+  try {
+    data = text ? JSON.parse(text) : {};
+  } catch {
+    // If not JSON, it's HTML or plain text from server/proxy
+    if (!res.ok) {
+      if (text.includes('<html') || text.includes('A server error') || text.includes('FUNCTION_INVOCATION_FAILED')) {
+        throw new Error(`Server Error (${res.status}): The server encountered an issue. Check deployment logs.`);
+      }
+      throw new Error(text || `Server Error (${res.status})`);
+    }
+    throw new Error(`Unexpected server response format (${res.status})`);
+  }
+
+  if (!res.ok) {
+    throw new Error(data?.error || fallbackErrorMsg);
+  }
+  return data as T;
+}
+
 export const authApi = {
   async register(username: string, password: string): Promise<{ user: User; token: string }> {
     const res = await fetch('/api/auth/register', {
@@ -29,10 +51,7 @@ export const authApi = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username, password }),
     });
-    const data = await res.json();
-    if (!res.ok) {
-      throw new Error(data.error || 'Registration failed.');
-    }
+    const data = await parseResponse<{ user: User; token: string }>(res, 'Registration failed.');
     if (data.token) {
       setStoredToken(data.token);
     }
@@ -45,10 +64,7 @@ export const authApi = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username, password }),
     });
-    const data = await res.json();
-    if (!res.ok) {
-      throw new Error(data.error || 'Login failed.');
-    }
+    const data = await parseResponse<{ user: User; token: string }>(res, 'Login failed.');
     if (data.token) {
       setStoredToken(data.token);
     }
@@ -66,7 +82,7 @@ export const authApi = {
         removeStoredToken();
         return null;
       }
-      const data = await res.json();
+      const data = await parseResponse<{ user: User }>(res, 'Failed to fetch user.');
       return data.user || null;
     } catch {
       return null;
@@ -92,11 +108,7 @@ export const chatApi = {
     const res = await fetch('/api/chats', {
       headers: getAuthHeaders(),
     });
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
-      throw new Error(data.error || 'Failed to load chats.');
-    }
-    const data = await res.json();
+    const data = await parseResponse<{ chats: ChatSession[] }>(res, 'Failed to load chats.');
     return data.chats || [];
   },
 
@@ -106,10 +118,7 @@ export const chatApi = {
       headers: getAuthHeaders(),
       body: JSON.stringify({ title, model }),
     });
-    const data = await res.json();
-    if (!res.ok) {
-      throw new Error(data.error || 'Failed to create chat.');
-    }
+    const data = await parseResponse<{ chat: ChatSession }>(res, 'Failed to create chat.');
     return data.chat;
   },
 
@@ -117,10 +126,7 @@ export const chatApi = {
     const res = await fetch(`/api/chats/${chatId}`, {
       headers: getAuthHeaders(),
     });
-    const data = await res.json();
-    if (!res.ok) {
-      throw new Error(data.error || 'Failed to load chat.');
-    }
+    const data = await parseResponse<{ chat: ChatSession }>(res, 'Failed to load chat.');
     return data.chat;
   },
 
@@ -129,10 +135,7 @@ export const chatApi = {
       method: 'DELETE',
       headers: getAuthHeaders(),
     });
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
-      throw new Error(data.error || 'Failed to delete chat.');
-    }
+    await parseResponse<{ success: boolean }>(res, 'Failed to delete chat.');
   },
 
   async clearChatContext(chatId: string): Promise<ChatSession> {
@@ -140,10 +143,7 @@ export const chatApi = {
       method: 'POST',
       headers: getAuthHeaders(),
     });
-    const data = await res.json();
-    if (!res.ok) {
-      throw new Error(data.error || 'Failed to clear context.');
-    }
+    const data = await parseResponse<{ chat: ChatSession }>(res, 'Failed to clear context.');
     return data.chat;
   },
 
