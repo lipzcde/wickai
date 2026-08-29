@@ -33,11 +33,12 @@ app.get('/api/health', (_req, res) => {
 
 // --- Config Info (Non-sensitive) ---
 app.get('/api/config', (_req, res) => {
-  const { defaultModel } = getLLMConfig();
+  const { defaultModel, baseUrl } = getLLMConfig();
   res.json({
     defaultModel,
-    provider: 'custom',
-    models: ['kirocor', 'llama-3.3-70b-instruct', 'gpt-4o-mini', 'deepseek-r1'],
+    provider: 'openai',
+    baseUrl,
+    models: ['gpt-4o-mini', 'gpt-4o', 'o3-mini', 'gpt-3.5-turbo', 'llama-3.3-70b-instruct'],
   });
 });
 
@@ -353,4 +354,9 @@ async function startServer() {
   });
 }
 
-startServer();
+if (!process.env.VERCEL) {
+  startServer();
+}
+
+export default app;
+export { app };

@@ -1,8 +1,8 @@
 import { Response } from 'express';
 
-const DEFAULT_BASE_URL = 'https://labor-buyer-cal-private.trycloudflare.com/v1';
-const DEFAULT_API_KEY = 'sk-070098ecda5aea48-k93903-455d3c11';
-const DEFAULT_MODEL = 'kirocor';
+const DEFAULT_BASE_URL = 'https://api.openai.com/v1';
+const DEFAULT_API_KEY = process.env.OPENAI_API_KEY || process.env.LLM_API_KEY || '';
+const DEFAULT_MODEL = 'gpt-4o-mini';
 
 export interface OpenAIMessage {
   role: 'system' | 'user' | 'assistant';
@@ -10,11 +10,11 @@ export interface OpenAIMessage {
 }
 
 export function getLLMConfig() {
-  const rawBaseUrl = process.env.LLM_BASE_URL || DEFAULT_BASE_URL;
+  const rawBaseUrl = process.env.LLM_BASE_URL || process.env.OPENAI_BASE_URL || DEFAULT_BASE_URL;
   // Ensure no trailing slash
   const baseUrl = rawBaseUrl.replace(/\/+$/, '');
-  const apiKey = process.env.LLM_API_KEY || DEFAULT_API_KEY;
-  const defaultModel = process.env.LLM_DEFAULT_MODEL || DEFAULT_MODEL;
+  const apiKey = process.env.LLM_API_KEY || process.env.OPENAI_API_KEY || DEFAULT_API_KEY;
+  const defaultModel = process.env.LLM_DEFAULT_MODEL || process.env.OPENAI_MODEL || DEFAULT_MODEL;
 
   return {
     baseUrl,
@@ -63,6 +63,18 @@ export async function streamChatCompletion(
   const { baseUrl, apiKey, defaultModel } = getLLMConfig();
   const selectedModel = (modelName && modelName.trim()) || defaultModel;
   const optimizedMessages = buildOptimizedMessages(messages);
+
+  if (!apiKey) {
+    res.write(
+      `data: ${JSON.stringify({
+        error:
+          'API Key is not configured. Please set OPENAI_API_KEY or LLM_API_KEY in your environment variables (.env / Vercel settings).',
+      })}\n\n`
+    );
+    res.write('data: [DONE]\n\n');
+    res.end();
+    return;
+  }
 
   const endpoint = `${baseUrl}/chat/completions`;
 

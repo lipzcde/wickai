@@ -14,7 +14,7 @@ export default function App() {
   const [chats, setChats] = useState<ChatSession[]>([]);
   const [activeChatId, setActiveChatId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessageType[]>([]);
-  const [currentModel, setCurrentModel] = useState<string>('kirocor');
+  const [currentModel, setCurrentModel] = useState<string>('gpt-4o-mini');
   const [input, setInput] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);

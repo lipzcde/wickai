@@ -8,10 +8,11 @@ interface ModelSelectorProps {
 }
 
 const PRESET_MODELS = [
-  { id: 'kirocor', name: 'kirocor', desc: 'Default primary model' },
-  { id: 'llama-3.3-70b-instruct', name: 'llama-3.3-70b-instruct', desc: 'High capability open model' },
-  { id: 'gpt-4o-mini', name: 'gpt-4o-mini', desc: 'Lightweight efficient reasoning' },
-  { id: 'deepseek-r1', name: 'deepseek-r1', desc: 'Deep reasoning engine' },
+  { id: 'gpt-4o-mini', name: 'gpt-4o-mini', desc: 'Fast & efficient reasoning (Default)' },
+  { id: 'gpt-4o', name: 'gpt-4o', desc: 'Flagship high-intelligence model' },
+  { id: 'o3-mini', name: 'o3-mini', desc: 'Next-gen reasoning engine' },
+  { id: 'gpt-3.5-turbo', name: 'gpt-3.5-turbo', desc: 'Standard conversational model' },
+  { id: 'llama-3.3-70b-instruct', name: 'llama-3.3-70b-instruct', desc: 'Open-weight high capability' },
 ];
 
 export const ModelSelector: React.FC<ModelSelectorProps> = ({

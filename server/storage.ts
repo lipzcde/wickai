@@ -32,20 +32,39 @@ export interface UserChatsData {
   updatedAt: string;
 }
 
-// Storage paths for JSON files
-const DATA_DIR = path.resolve(process.cwd(), 'data');
+// Determine writeable data directory (fallback to /tmp in serverless environments like Vercel)
+function getDataDirectory(): string {
+  if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME) {
+    return path.join('/tmp', 'wickai-data');
+  }
+  try {
+    const localDir = path.resolve(process.cwd(), 'data');
+    if (!fs.existsSync(localDir)) {
+      fs.mkdirSync(localDir, { recursive: true });
+    }
+    return localDir;
+  } catch (e) {
+    return path.join('/tmp', 'wickai-data');
+  }
+}
+
+const DATA_DIR = getDataDirectory();
 const USERS_FILE = path.join(DATA_DIR, 'users.json');
 const CHATS_DIR = path.join(DATA_DIR, 'chats');
 
 function ensureDataDirectories() {
-  if (!fs.existsSync(DATA_DIR)) {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
-  }
-  if (!fs.existsSync(CHATS_DIR)) {
-    fs.mkdirSync(CHATS_DIR, { recursive: true });
-  }
-  if (!fs.existsSync(USERS_FILE)) {
-    fs.writeFileSync(USERS_FILE, JSON.stringify([], null, 2), 'utf-8');
+  try {
+    if (!fs.existsSync(DATA_DIR)) {
+      fs.mkdirSync(DATA_DIR, { recursive: true });
+    }
+    if (!fs.existsSync(CHATS_DIR)) {
+      fs.mkdirSync(CHATS_DIR, { recursive: true });
+    }
+    if (!fs.existsSync(USERS_FILE)) {
+      fs.writeFileSync(USERS_FILE, JSON.stringify([], null, 2), 'utf-8');
+    }
+  } catch (err) {
+    console.warn('Storage directory initialization warning:', err);
   }
 }
 

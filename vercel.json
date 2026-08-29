@@ -6,17 +6,15 @@
   "rewrites": [
     {
       "source": "/api/(.*)",
-      "destination": "/api/$1"
+      "destination": "/api/index.ts"
+    },
+    {
+      "source": "/api",
+      "destination": "/api/index.ts"
     },
     {
       "source": "/(.*)",
       "destination": "/index.html"
     }
-  ],
-  "env": {
-    "LLM_BASE_URL": "@llm_base_url",
-    "LLM_API_KEY": "@llm_api_key",
-    "LLM_DEFAULT_MODEL": "kirocor",
-    "JWT_SECRET": "@jwt_secret"
-  }
+  ]
 }
